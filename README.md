@@ -4,7 +4,7 @@
 
 Zyi is a local application with four areas: sessions, a priority queue, an agent-backed coordinator, and the selected session's original terminal. Session management and quick actions run locally. Coordinator agent requests and workers use their respective CLI accounts and usage allowances; Zyi has no separate service fee.
 
-**Release: 0.5.4 desktop preview.** Claude follow-ups now move earlier response entries to Handled, avoiding accumulated review cards. Includes saved folders/templates, working/priority indicators and terminal screen restoration. Formerly Relay, now **Zyi**, inspired by 注意 (attention). Automatic project-memory/skill extraction remains planned separately. See [0.5 goals and acceptance](docs/release-0.5.md) and [validation details](docs/testing.md).
+**Release: 0.5.5 desktop preview.** Fixes mouse-aware terminal scrolling after switching sessions, adds Copy selection/Paste controls, and gives Claude idle cards useful response excerpts. Includes saved folders/templates, visible session states and coordinator app workflows. Formerly Relay, now **Zyi**, inspired by 注意 (attention). Automatic project-memory/skill extraction remains planned separately. See [0.5 goals and acceptance](docs/release-0.5.md) and [validation details](docs/testing.md).
 
 ## Develop and maintain Zyi
 
@@ -20,9 +20,9 @@ Download the matching package from [GitHub Releases](https://github.com/MAXGGG/z
 
 | Computer | Download |
 | --- | --- |
-| Windows x64 | `Zyi-0.5.4-win-x64.exe` installer |
-| Mac with Apple Silicon (M1 or newer) | `Zyi-0.5.4-mac-arm64.dmg` |
-| Intel Mac | `Zyi-0.5.4-mac-x64.dmg` |
+| Windows x64 | `Zyi-0.5.5-win-x64.exe` installer |
+| Mac with Apple Silicon (M1 or newer) | `Zyi-0.5.5-mac-arm64.dmg` |
+| Intel Mac | `Zyi-0.5.5-mac-x64.dmg` |
 
 Install and open **Zyi**. Zyi includes its own Node runtime; install and authenticate your desired agent separately. Windows builds are unsigned and macOS builds are ad-hoc signed, not notarized, so this preview may trigger first-launch OS warnings. Read the [full desktop setup guide](docs/desktop.md) for installation, importing existing sessions, storage locations, upgrades and troubleshooting.
 
@@ -150,6 +150,8 @@ Quiet mode defaults to 15 seconds and produces **Check activity**, not a claim t
 
 Claude hooks identify explicit permission and question-tool events. Classification of a plain-language final response is still a suggestion; you can correct it using **Classify as**. A completed response is not proof the entire project is done. Review approvals in the original terminal; Zyi never answers or grants them autonomously.
 
+Idle cards show a short excerpt of the latest available assistant response instead of repeating “Claude is waiting for input.” These are local text previews, without an extra model call. The hook reads only a bounded tail of its supplied conversation file, excludes tool/thinking blocks and other sessions, and forwards at most 4,000 characters. If context is unavailable, the card says **Input needed · no response preview**. Idle remains **Check activity**; the excerpt does not prove completion. A later Stop enriches that same automatic idle card, retaining its priority and deferral. Full excerpt context is available when opening the item. Existing saved cards gain previews on a subsequent hook event; Zyi does not scan old history on upgrade.
+
 ### Agent-independent event bridge
 
 Every managed process inherits `RELAY_SESSION_ID`, `RELAY_RUN_ID`, `RELAY_EVENT_URL`, and `RELAY_TOKEN`. Integrate a CLI's hooks or a task script with:
@@ -229,6 +231,8 @@ Each session has a large text/icon badge, with the same state shown in its termi
 Counts show pending attention. Earlier results remain visibly counted while a new turn is working; stopped/archived records can still have pending work. A running process is not proof that an agent is thinking, and silence is not proof of completion.
 
 Drag the dividers beside the session list and attention queue, or between the coordinator and terminal. Focus a divider and use arrow keys (Shift for larger steps); Home or double-click resets that divider. **Settings → Reset panel sizes** resets all. Sizes persist in this browser. Narrow screens stack panels and hide the vertical dividers.
+
+The terminal preserves mouse-report encoding when switching sessions. To select text while an agent captures mouse clicks, hold **Option on Mac** or **Shift on Windows/Linux** while dragging, then use **Copy selection** or your system Copy shortcut. **Paste** inserts clipboard text into the current live session without pressing Enter; it cancels if you switch sessions while clipboard access is pending. System paste shortcuts still work when the terminal has focus. Clipboard permission failures show a shortcut fallback. Switching back to a plain terminal restores its normal scrollback.
 
 ## Remote server setup
 

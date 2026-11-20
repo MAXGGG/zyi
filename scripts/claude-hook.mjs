@@ -1,5 +1,6 @@
 // A hook must never prevent the worker from progressing when Zyi is unavailable.
 import { randomUUID } from "node:crypto";
+import { assistantExcerpt } from "./claude-context.mjs";
 
 try {
   let input = "";
@@ -28,6 +29,10 @@ try {
       })),
     };
   event.eventId = randomUUID();
+  if (source.hook_event_name === "Notification" && source.notification_type === "idle_prompt") {
+    const excerpt = assistantExcerpt(source);
+    if (excerpt) event.assistant_excerpt = excerpt;
+  }
   const response = await fetch(process.env.RELAY_HOOK_URL, {
     method: "POST",
     headers: {

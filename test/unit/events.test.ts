@@ -51,6 +51,81 @@ test("completion without message text and idle notifications still request atten
   assert.equal(w.queue().length, 0);
 });
 
+test("idle cards show response context and a late Stop enriches the same deferred item", () => {
+  const { w, emit } = fixture();
+  emit({
+    hook_event_name: "Notification",
+    notification_type: "idle_prompt",
+    assistant_excerpt:
+      "## Review complete\n\n**Two issues** remain in [checkout](https://example.test). Which fix should I apply?",
+  });
+  const item = w.queue()[0];
+  assert.equal(
+    item.title,
+    "Review complete Two issues remain in checkout. Which fix should I apply?",
+  );
+  assert.equal(item.kind, "activity", "an excerpt is context, not a structured question");
+  assert.match(item.detail, /excerpt; verify/);
+  w.snooze(item.id);
+  emit({
+    hook_event_name: "Notification",
+    notification_type: "idle_prompt",
+    assistant_excerpt: "Two checkout issues need your review.",
+  });
+  assert.equal(item.status, "snoozed");
+  const until = item.snoozedUntil;
+  emit({ hook_event_name: "Stop", last_assistant_message: "Fixed checkout. All 12 tests pass." });
+  assert.equal(w.state.items.length, 1);
+  assert.equal(item.kind, "review");
+  assert.equal(item.source, "turn-result");
+  assert.equal(item.title, "Fixed checkout. All 12 tests pass.");
+  assert.equal(item.snoozedUntil, until);
+  emit({
+    hook_event_name: "Notification",
+    notification_type: "idle_prompt",
+    assistant_excerpt: "Do not replace the direct result.",
+  });
+  assert.equal(item.title, "Fixed checkout. All 12 tests pass.");
+});
+
+test("missing previews are explicit and context cannot replace user-owned attention", () => {
+  const { w, emit } = fixture();
+  emit({ hook_event_name: "Notification", notification_type: "idle_prompt" });
+  assert.equal(w.queue()[0].title, "Input needed · no response preview");
+  w.classify(w.queue()[0].id, "question");
+  emit({
+    hook_event_name: "Notification",
+    notification_type: "idle_prompt",
+    assistant_excerpt: "Other text",
+  });
+  assert.equal(w.queue()[0].title, "Input needed · no response preview");
+  w.resolve(w.queue()[0].id);
+  emit({ hook_event_name: "Stop" });
+  const item = w.queue()[0];
+  emit({
+    hook_event_name: "Notification",
+    notification_type: "idle_prompt",
+    assistant_excerpt: "A long response ".repeat(40),
+  });
+  assert.equal(w.queue()[0].id, item.id);
+  assert.ok(item.title.length <= 180);
+  assert.ok(item.title.endsWith("…"));
+  assert.equal(item.kind, "review");
+  assert.match(item.detail, /Latest assistant response/);
+  w.resolve(item.id);
+  emit({
+    hook_event_name: "Notification",
+    notification_type: "idle_prompt",
+    assistant_excerpt: "Preserve this available context.",
+  });
+  const idle = w.queue()[0];
+  emit({ hook_event_name: "Stop" });
+  assert.equal(w.queue().length, 1);
+  assert.equal(w.queue()[0].id, idle.id);
+  assert.equal(idle.kind, "review");
+  assert.equal(idle.title, "Preserve this available context.");
+});
+
 test("a submitted reply acknowledges only the captured automatic results in its session", () => {
   const { w, session, emit } = fixture();
   emit({ hook_event_name: "Stop", message: "First result" });

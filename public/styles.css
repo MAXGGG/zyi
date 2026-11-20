@@ -675,6 +675,13 @@ h2 {
   gap: 10px;
   color: #687588;
   font-size: 8px;
+  flex-wrap: wrap;
+}
+.terminal-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .terminal-footer span:first-child {
   color: #92a0b0;

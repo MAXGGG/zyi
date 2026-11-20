@@ -108,6 +108,7 @@ export interface WorkerEvent {
   hook_event_name: string;
   session_id?: string;
   last_assistant_message?: string;
+  assistant_excerpt?: string;
   message?: string;
   notification_type?: string;
   tool_name?: string;
