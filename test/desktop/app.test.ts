@@ -142,6 +142,40 @@ test("desktop: bundled terminal, isolated window, background lifecycle, durable 
     await expect(page.locator(".xterm-accessibility-tree")).toContainText(
       "ZYI_REPLY_desktop roundtrip",
     );
+    const transcript = path.join(directory, "fixture-session.jsonl");
+    writeFileSync(
+      transcript,
+      `${JSON.stringify({ type: "assistant", sessionId: "desktop-fixture", message: { content: [{ type: "text", text: "Packaged bridge preview works." }] } })}\n`,
+    );
+    await new Promise<void>((resolve, reject) => {
+      const bridge = execFile(
+        executable,
+        [path.resolve(appPath, "../backend/scripts/claude-hook.mjs")],
+        {
+          env: {
+            ...process.env,
+            RELAY_HOOK_URL: `${connection.address}/api/hook`,
+            RELAY_TOKEN:
+              new URLSearchParams(new URL(connection.url).hash.slice(1)).get("token") ?? "",
+            RELAY_SESSION_ID: id,
+            RELAY_RUN_ID: state.terminals[id].runId,
+          },
+          windowsHide: true,
+          timeout: 10000,
+        },
+        (error, _stdout, stderr) =>
+          error || stderr ? reject(error ?? new Error(stderr)) : resolve(),
+      );
+      bridge.stdin?.end(
+        JSON.stringify({
+          hook_event_name: "Notification",
+          notification_type: "idle_prompt",
+          session_id: "desktop-fixture",
+          transcript_path: transcript,
+        }),
+      );
+    });
+    await expect(page.locator("#queue")).toContainText("Packaged bridge preview works.");
     await page.locator("#resize-sessions").focus();
     await page.keyboard.press("Shift+ArrowRight");
     const width = await page.locator("#resize-sessions").getAttribute("aria-valuenow");

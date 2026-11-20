@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { projectRoot } from "../../src/server/app.ts";
@@ -40,6 +41,25 @@ test("the installed Claude bridge delivers large Unicode completions and empty S
     };
     await emit({ hook_event_name: "SessionStart", session_id: "saved-conversation" });
     assert.equal(app.workspace.session(id).conversationId, "saved-conversation");
+    const transcript = path.join(app.stateDir, "bridge-fixture.jsonl");
+    writeFileSync(
+      transcript,
+      `${JSON.stringify({
+        type: "assistant",
+        sessionId: "saved-conversation",
+        message: { content: [{ type: "text", text: "Checkout fixed; twelve tests pass." }] },
+      })}\n`,
+    );
+    await emit({
+      hook_event_name: "Notification",
+      notification_type: "idle_prompt",
+      message: "Claude is waiting for your input",
+      session_id: "saved-conversation",
+      transcript_path: transcript,
+    });
+    assert.equal(app.workspace.queue()[0].title, "Checkout fixed; twelve tests pass.");
+    assert.match(app.workspace.queue()[0].detail, /excerpt/);
+    await emit({ hook_event_name: "UserPromptSubmit" });
     await emit({ hook_event_name: "Stop", last_assistant_message: '结果\\"\n'.repeat(30000) });
     assert.equal(app.workspace.queue().length, 1, "long results must not silently fail validation");
     assert.ok(app.workspace.queue()[0].detail.startsWith("结果"));

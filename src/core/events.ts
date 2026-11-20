@@ -1,6 +1,19 @@
 import type { WorkerEvent } from "./types.ts";
 import type { Workspace } from "./workspace.ts";
 
+const emptyResult = "Claude finished its turn. Open the terminal to review the result.";
+function preview(text: string): string {
+  const plain = text
+    .replace(/^[ \t]*(?:#{1,6}[ \t]+|[-*][ \t]+|\d+\.[ \t]+|```[^\n]*)/gm, "")
+    .replace(/\[([^[\]\r\n]{1,500})\]\([^()\r\n]{1,2000}\)/g, "$1")
+    .replace(/[*`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (plain.length <= 180) return plain;
+  const end = plain.lastIndexOf(" ", 179);
+  return `${plain.slice(0, end > 120 ? end : 179)}…`;
+}
+
 export function pendingClaudeReviews(workspace: Workspace, sessionId: string) {
   return workspace.state.items.filter(
     (item) =>
@@ -32,14 +45,27 @@ export function ingestEvent(
     requestKey?: string,
     suggested = false,
   ) => {
-    workspace.enqueue(sessionId, {
+    const input = {
       kind,
       detail,
-      title: detail.replace(/\s+/g, " ").slice(0, 120) || "Session needs attention",
+      title: preview(detail) || "Session needs attention",
       source,
       ...(requestKey ? { requestKey } : {}),
-      confidence: suggested ? "suggested" : "detected",
-    });
+      confidence: suggested ? ("suggested" as const) : ("detected" as const),
+    };
+    // A delayed Stop enriches the existing idle card instead of creating a
+    // duplicate. Keep its ID, priority, deferral and user-owned classifications.
+    const idle =
+      (source === "turn-result" || source === "turn-question") &&
+      workspace.state.items.find(
+        (item) =>
+          item.sessionId === sessionId &&
+          item.source === "idle-prompt" &&
+          item.status !== "resolved" &&
+          item.confidence !== "manual",
+      );
+    if (idle) Object.assign(idle, input);
+    else workspace.enqueue(sessionId, input);
   };
   const resolveQuestions = (source: string, requestKey?: string) => {
     for (const item of workspace.state.items) {
@@ -93,17 +119,29 @@ export function ingestEvent(
     case "Notification":
       if (event.notification_type === "idle_prompt") {
         session.status = "waiting";
-        if (
-          !workspace.state.items.some(
-            (item) => item.sessionId === sessionId && item.status !== "resolved",
-          )
-        )
+        const pending = workspace.state.items.filter(
+          (item) => item.sessionId === sessionId && item.status !== "resolved",
+        );
+        const context = (event.assistant_excerpt ?? event.last_assistant_message ?? "")
+          .trim()
+          .slice(0, 4000);
+        const detail = context
+          ? `Latest assistant response (excerpt; verify in terminal):\n${context}`
+          : text ||
+            "Claude reported an idle prompt. No response preview is available; open the terminal to see what it needs.";
+        const title = context ? preview(context) : "Input needed · no response preview";
+        const generic = pending.find(
+          (item) =>
+            item.confidence !== "manual" &&
+            (item.source === "idle-prompt" ||
+              (item.source === "turn-result" && item.detail === emptyResult)),
+        );
+        if (generic && context) Object.assign(generic, { title, detail });
+        if (!pending.length)
           workspace.enqueue(sessionId, {
             kind: "activity",
-            title: "Claude is waiting for input",
-            detail:
-              text ||
-              "Claude reported an idle prompt. Check the terminal for a result or question.",
+            title,
+            detail,
             source: "idle-prompt",
             confidence: "suggested",
           });
@@ -143,7 +181,7 @@ export function ingestEvent(
         const question = /\?\s*$/.test(text);
         add(
           question ? "question" : "review",
-          text || "Claude finished its turn. Open the terminal to review the result.",
+          text || emptyResult,
           question ? "turn-question" : "turn-result",
           undefined,
           Boolean(text),

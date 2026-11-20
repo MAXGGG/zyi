@@ -735,6 +735,7 @@ export async function createApp(
               for (const field of [
                 "session_id",
                 "last_assistant_message",
+                "assistant_excerpt",
                 "message",
                 "notification_type",
                 "tool_name",

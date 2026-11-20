@@ -6,6 +6,8 @@ if (process.argv.includes("--ignore-hangup")) {
   process.on("SIGHUP", () => console.log("HANGUP_IGNORED"));
 }
 console.log(`ARGS:${JSON.stringify(process.argv.slice(2))}`);
+if (process.argv.includes("--history"))
+  for (let i = 0; i < 120; i++) console.log(`HISTORY_LINE_${i}`);
 console.log("WORKER_READY");
 const lines = readline.createInterface({ input: process.stdin, terminal: false });
 lines.on("line", async (line) => {

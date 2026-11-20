@@ -33,7 +33,7 @@ const lock = JSON.parse(readFileSync(path.join(root, "package-lock.json"), "utf8
 for (const directory of ["public", "assets"])
   cpSync(path.join(root, directory), path.join(backend, directory), { recursive: true });
 mkdirSync(path.join(backend, "scripts"), { recursive: true });
-for (const file of ["demo-worker.mjs", "claude-hook.mjs", "relay-event.mjs"])
+for (const file of ["demo-worker.mjs", "claude-hook.mjs", "claude-context.mjs", "relay-event.mjs"])
   cpSync(path.join(root, "scripts", file), path.join(backend, "scripts", file));
 cpSync(path.join(root, "desktop/preload.cjs"), path.join(backend, "desktop/preload.cjs"));
 cpSync(path.join(root, "LICENSE"), path.join(backend, "LICENSE"));

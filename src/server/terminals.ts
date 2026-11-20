@@ -4,6 +4,7 @@ import headless from "@xterm/headless";
 import * as pty from "node-pty";
 import type { Session } from "../core/types.ts";
 import { findExecutable, launchProfile } from "./profiles.ts";
+import { trackMouseEncoding } from "./terminal-modes.ts";
 import { releaseWindowsPty } from "./windows-pty.ts";
 
 interface TerminalRecord {
@@ -16,6 +17,7 @@ interface TerminalRecord {
   screen: InstanceType<typeof headless.Terminal>;
   lastHook?: { event: string; at: number };
   serializer: InstanceType<typeof serialize.SerializeAddon>;
+  mouseEncoding: () => string;
   replyPending?: boolean;
   stopTimer?: ReturnType<typeof setTimeout>;
 }
@@ -95,6 +97,7 @@ export class Terminals {
       runId,
       screen,
       serializer,
+      mouseEncoding: trackMouseEncoding(screen),
     };
     this.records.set(session.id, record);
     // Respond exactly once, even when no browser is attached. Replaying terminal
@@ -165,7 +168,7 @@ export class Terminals {
     record.screen.write("", () => {
       if (this.records.get(id) !== record) return callback();
       callback({
-        data: record.serializer.serialize(),
+        data: record.serializer.serialize() + record.mouseEncoding(),
         cols: record.screen.cols,
         rows: record.screen.rows,
         runId: record.runId,

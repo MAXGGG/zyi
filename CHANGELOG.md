@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [0.5.5] - 2026-11-20
+
+- Preserve SGR cell/pixel mouse encoding in terminal snapshots. Mouse-aware CLIs can scroll after switching/reconnecting without a manual resize. Refresh the terminal on visibility/focus restoration.
+- Add Copy selection and Paste controls, Mac Option-drag selection, and modifier hints. Bind asynchronous clipboard paste to the original live session/run; never press Enter automatically.
+- Show readable assistant-response excerpts in Claude idle cards. Read a bounded tail of only the hook-supplied session transcript, exclude tool/thinking content, and retain explicit no-preview fallback without extra inference.
+- Enrich empty completion cards and late completions without duplicating automatic idle cards or losing deferrals. Preserve manually classified items and specific questions/approvals/results.
+- Add browser, hook, mouse-protocol and packaged-bridge regressions; retain separate real Claude/Mac acceptance.
+
 ## [0.5.4] - 2026-11-11
 
 - Publish the desktop test worker PID atomically, validate it and confirm the worker is alive before shutdown; require ESRCH afterward. Reading a newly created but empty PID file otherwise probes process group zero and can falsely fail shutdown acceptance. No production shutdown behavior changes.
@@ -47,6 +55,7 @@
 
 - Agent-independent profiles, terminals, durable attention and reviewed replies.
 
+[0.5.5]: https://github.com/MAXGGG/zyi/releases/tag/v0.5.5
 [0.5.4]: https://github.com/MAXGGG/zyi/releases/tag/v0.5.4
 [0.5.3]: https://github.com/MAXGGG/zyi/tree/v0.5.3
 [0.5.1]: https://github.com/MAXGGG/zyi/releases/tag/v0.5.1

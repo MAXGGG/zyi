@@ -18,6 +18,7 @@ function queueTerminal(operation) {
   terminalWrites = terminalWrites.then(operation).catch(() => {
     restoringTerminal = false;
     terminal.options.disableStdin = true;
+    $("#terminal-paste").disabled = true;
     requestedId = null;
     toast("Terminal view needs to reconnect. Select the session again.");
   });
@@ -65,6 +66,7 @@ const terminal = new Terminal({
   lineHeight: 1.35,
   cursorBlink: true,
   screenReaderMode: true,
+  macOptionClickForcesSelection: true,
   scrollback: 3000,
   disableStdin: true,
   theme: {
@@ -77,6 +79,44 @@ const terminal = new Terminal({
 const fit = new FitAddon.FitAddon();
 terminal.loadAddon(fit);
 terminal.open($("#terminal"));
+$("#terminal-selection-hint").textContent = /Mac/.test(navigator.platform)
+  ? "Option-drag to select in mouse-aware apps"
+  : "Shift-drag to select in mouse-aware apps";
+terminal.onSelectionChange(() => {
+  $("#terminal-copy").disabled = !terminal.hasSelection();
+});
+$("#terminal-copy").addEventListener("click", async () => {
+  const selection = terminal.getSelection();
+  if (!selection) return;
+  try {
+    await navigator.clipboard.writeText(selection);
+  } catch {
+    toast("Clipboard access failed. Use your system Copy shortcut with the text selected.");
+  }
+});
+$("#terminal-paste").addEventListener("click", async () => {
+  const target = { sessionId: attachedId, runId: attachedRunId, request: attachRequest };
+  if (!target.sessionId || !target.runId || terminal.options.disableStdin) return;
+  try {
+    const text = await navigator.clipboard.readText();
+    if (
+      target.sessionId !== attachedId ||
+      target.runId !== attachedRunId ||
+      target.request !== attachRequest ||
+      terminal.options.disableStdin ||
+      socket?.readyState !== WebSocket.OPEN
+    )
+      return toast(
+        "Session changed while reading the clipboard. Paste again in the intended session.",
+      );
+    if (text.length > 32000)
+      return toast("Clipboard text is too large. Paste less than 32,000 characters.");
+    terminal.paste(text);
+    terminal.focus();
+  } catch {
+    toast("Clipboard access failed. Focus the terminal and use your system Paste shortcut.");
+  }
+});
 // The server answers device/cursor queries once, including while this UI is closed.
 for (const prefix of [undefined, "?", ">"]) {
   for (const final of ["c", "n"]) terminal.parser.registerCsiHandler({ prefix, final }, () => true);
@@ -97,13 +137,21 @@ terminal.onResize(({ cols, rows }) => {
   if (!restoringTerminal && attachedId && socket?.readyState === WebSocket.OPEN)
     socket.send(JSON.stringify({ type: "resize", sessionId: attachedId, cols, rows }));
 });
-new ResizeObserver(() => {
-  try {
-    if (!restoringTerminal) fit.fit();
-  } catch {
-    /* Panel temporarily hidden. */
-  }
-}).observe($("#terminal"));
+let terminalRefresh;
+function refreshTerminal() {
+  cancelAnimationFrame(terminalRefresh);
+  terminalRefresh = requestAnimationFrame(() => {
+    if (restoringTerminal || !$("#terminal").getClientRects().length) return;
+    fit.fit();
+    terminal.refresh(0, terminal.rows - 1);
+  });
+}
+new ResizeObserver(refreshTerminal).observe($("#terminal"));
+window.addEventListener("focus", refreshTerminal);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshTerminal();
+});
+document.fonts.ready.then(refreshTerminal);
 function toast(message) {
   $("#toast").textContent = message;
   $("#toast").hidden = false;
@@ -169,6 +217,7 @@ function attach(session, live) {
   attachedId = null;
   attachedRunId = null;
   terminal.options.disableStdin = true;
+  $("#terminal-paste").disabled = true;
   socket.send(
     JSON.stringify({ type: "attach", sessionId: session.id, requestId: ++attachRequest }),
   );
@@ -356,6 +405,7 @@ function render(data) {
     requestedId = null;
     requestedRunId = null;
     terminal.options.disableStdin = true;
+    $("#terminal-paste").disabled = true;
     terminal.reset();
   }
   const focused = state.items.find((i) => i.id === state.selectedItemId),
@@ -416,9 +466,11 @@ function connect() {
         attachedRunId = message.runId;
         requestedRunId = message.runId;
         terminal.options.disableStdin = !message.running;
+        $("#terminal-paste").disabled = !message.running;
         if (!message.running)
           await writeTerminal("\r\nSession is stopped. Select Start to launch or resume it.\r\n");
         fit.fit();
+        refreshTerminal();
         if (socket?.readyState !== WebSocket.OPEN || message.requestId !== attachRequest) return;
         socket.send(
           JSON.stringify({
@@ -440,6 +492,7 @@ function connect() {
       });
     } else if (message.type === "exit" && message.sessionId === attachedId) {
       terminal.options.disableStdin = true;
+      $("#terminal-paste").disabled = true;
       terminal.writeln(`\r\n[Process exited: ${message.code}. Session record preserved.]`);
     } else if (message.type === "error") toast(message.message);
   });
@@ -450,6 +503,7 @@ function connect() {
     attachedRunId = null;
     requestedId = null;
     terminal.options.disableStdin = true;
+    $("#terminal-paste").disabled = true;
     if (!closed) setTimeout(connect, 2000);
   });
 }
