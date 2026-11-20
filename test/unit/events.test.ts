@@ -112,6 +112,18 @@ test("missing previews are explicit and context cannot replace user-owned attent
   assert.ok(item.title.endsWith("…"));
   assert.equal(item.kind, "review");
   assert.match(item.detail, /Latest assistant response/);
+  w.resolve(item.id);
+  emit({
+    hook_event_name: "Notification",
+    notification_type: "idle_prompt",
+    assistant_excerpt: "Preserve this available context.",
+  });
+  const idle = w.queue()[0];
+  emit({ hook_event_name: "Stop" });
+  assert.equal(w.queue().length, 1);
+  assert.equal(w.queue()[0].id, idle.id);
+  assert.equal(idle.kind, "review");
+  assert.equal(idle.title, "Preserve this available context.");
 });
 
 test("a submitted reply acknowledges only the captured automatic results in its session", () => {

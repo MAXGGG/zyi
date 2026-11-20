@@ -2,6 +2,7 @@ import type { WorkerEvent } from "./types.ts";
 import type { Workspace } from "./workspace.ts";
 
 const emptyResult = "Claude finished its turn. Open the terminal to review the result.";
+const contextPrefix = "Latest assistant response (excerpt; verify in terminal):\n";
 function preview(text: string): string {
   const plain = text
     .replace(/^[ \t]*(?:#{1,6}[ \t]+|[-*][ \t]+|\d+\.[ \t]+|```[^\n]*)/gm, "")
@@ -64,8 +65,13 @@ export function ingestEvent(
           item.status !== "resolved" &&
           item.confidence !== "manual",
       );
-    if (idle) Object.assign(idle, input);
-    else workspace.enqueue(sessionId, input);
+    if (idle) {
+      if (detail === emptyResult && idle.detail.startsWith(contextPrefix)) {
+        input.title = idle.title;
+        input.detail = idle.detail;
+      }
+      Object.assign(idle, input);
+    } else workspace.enqueue(sessionId, input);
   };
   const resolveQuestions = (source: string, requestKey?: string) => {
     for (const item of workspace.state.items) {
@@ -126,7 +132,7 @@ export function ingestEvent(
           .trim()
           .slice(0, 4000);
         const detail = context
-          ? `Latest assistant response (excerpt; verify in terminal):\n${context}`
+          ? contextPrefix + context
           : text ||
             "Claude reported an idle prompt. No response preview is available; open the terminal to see what it needs.";
         const title = context ? preview(context) : "Input needed · no response preview";
